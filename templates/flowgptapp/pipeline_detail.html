@@ -1,0 +1,140 @@
+{% extends 'base.html' %}
+
+{% block title %}FlowGPT - Pipeline Details{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-12">
+        <div class="card mb-4">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <h1 class="h3 mb-0">Pipeline: {{ pipeline.name }}</h1>
+                <div>
+                    <a href="{% url 'home' %}" class="btn btn-primary btn-sm">Back to Home</a>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <table class="table">
+                            <tr>
+                                <th>Description:</th>
+                                <td>{{ pipeline.description|default:"No description provided." }}</td>
+                            </tr>
+                            <tr>
+                                <th>Status:</th>
+                                <td>
+                                    {% if pipeline.is_active %}
+                                        <span class="badge bg-success">Active</span>
+                                    {% else %}
+                                        <span class="badge bg-danger">Inactive</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>Created:</th>
+                                <td>{{ pipeline.created_at }}</td>
+                            </tr>
+                            <tr>
+                                <th>Updated:</th>
+                                <td>{{ pipeline.updated_at }}</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-12">
+        <div class="card">
+            <div class="card-header bg-white">
+                <h2 class="h5 mb-0">Pipeline Flow</h2>
+            </div>
+            <div class="card-body">
+                {% if edges %}
+                    <div class="mb-4">
+                        <h5>Nodes and Connections</h5>
+                        <div id="pipelineFlow" class="bg-light p-4 rounded">
+                            {% for edge in edges %}
+                                <div class="d-flex align-items-center mb-3">
+                                    <div class="node me-2">
+                                        <strong>{{ edge.source.name }}</strong>
+                                        <div class="small text-muted">{{ edge.source.get_node_type_display }}</div>
+                                    </div>
+                                    <div class="mx-3">
+                                        <svg width="40" height="20">
+                                            <line x1="0" y1="10" x2="35" y2="10" stroke="#333" stroke-width="2"></line>
+                                            <polygon points="35,10 30,5 30,15" fill="#333"></polygon>
+                                        </svg>
+                                        {% if edge.condition %}
+                                            <div class="small text-muted">{{ edge.condition }}</div>
+                                        {% endif %}
+                                    </div>
+                                    <div class="node">
+                                        <strong>{{ edge.target.name }}</strong>
+                                        <div class="small text-muted">{{ edge.target.get_node_type_display }}</div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    
+                    <h5>Node Details</h5>
+                    <div class="row">
+                        {% for edge in edges %}
+                            {% with node=edge.source %}
+                                <div class="col-md-6 mb-3">
+                                    <div class="card h-100">
+                                        <div class="card-header bg-light">
+                                            <h6 class="mb-0">{{ node.name }}</h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <p><strong>Type:</strong> {{ node.get_node_type_display }}</p>
+                                            <p><strong>Description:</strong> {{ node.description|default:"No description provided." }}</p>
+                                            {% if node.config %}
+                                                <div class="mt-2">
+                                                    <strong>Configuration:</strong>
+                                                    <pre class="bg-light p-2 rounded mt-1">{{ node.config }}</pre>
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endwith %}
+                            
+                            {% if forloop.last %}
+                                {% with node=edge.target %}
+                                    <div class="col-md-6 mb-3">
+                                        <div class="card h-100">
+                                            <div class="card-header bg-light">
+                                                <h6 class="mb-0">{{ node.name }}</h6>
+                                            </div>
+                                            <div class="card-body">
+                                                <p><strong>Type:</strong> {{ node.get_node_type_display }}</p>
+                                                <p><strong>Description:</strong> {{ node.description|default:"No description provided." }}</p>
+                                                {% if node.config %}
+                                                    <div class="mt-2">
+                                                        <strong>Configuration:</strong>
+                                                        <pre class="bg-light p-2 rounded mt-1">{{ node.config }}</pre>
+                                                    </div>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                {% endwith %}
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="alert alert-warning">
+                        <p>This pipeline has no defined nodes or edges.</p>
+                        <a href="/admin/flowgptapp/edge/add/" class="btn btn-primary btn-sm mt-2">Add Edge</a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

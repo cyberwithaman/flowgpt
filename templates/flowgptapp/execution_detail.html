@@ -1,0 +1,184 @@
+{% extends 'base.html' %}
+
+{% block title %}FlowGPT - Execution Details{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-12">
+        <div class="card mb-4">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <h1 class="h3 mb-0">Execution Details</h1>
+                <div>
+                    <a href="{% url 'execution_history' %}" class="btn btn-outline-primary btn-sm me-2">Back to History</a>
+                    <a href="{% url 'home' %}" class="btn btn-primary btn-sm">Back to Home</a>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <table class="table">
+                            <tr>
+                                <th>Pipeline:</th>
+                                <td>{{ execution.pipeline.name }}</td>
+                            </tr>
+                            <tr>
+                                <th>Status:</th>
+                                <td>
+                                    {% if execution.is_complete %}
+                                        <span class="badge bg-success">Complete</span>
+                                    {% else %}
+                                        <span class="badge bg-primary">In Progress</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>Started:</th>
+                                <td>{{ execution.started_at }}</td>
+                            </tr>
+                            <tr>
+                                <th>Completed:</th>
+                                <td>{{ execution.completed_at|default:"In progress" }}</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-6">
+        <div class="card mb-4">
+            <div class="card-header bg-white">
+                <h2 class="h5 mb-0">Input Data</h2>
+            </div>
+            <div class="card-body">
+                <pre class="bg-light p-3 rounded">{{ execution.input_data }}</pre>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card mb-4">
+            <div class="card-header bg-white">
+                <h2 class="h5 mb-0">Output Data</h2>
+            </div>
+            <div class="card-body">
+                {% if output_data %}
+                    <div class="mb-3">
+                        {% if output_data.text %}
+                            <h5>Text:</h5>
+                            <div class="bg-light p-3 rounded mb-3">{{ output_data.text }}</div>
+                        {% endif %}
+                        
+                        {% if output_data.summary %}
+                            <h5>Summary:</h5>
+                            <div class="bg-light p-3 rounded mb-3">{{ output_data.summary }}</div>
+                        {% endif %}
+                        
+                        {% if output_data.translated_text %}
+                            <h5>Translated Text:</h5>
+                            <div class="bg-light p-3 rounded mb-3">{{ output_data.translated_text }}</div>
+                        {% endif %}
+                        
+                        {% if output_data.email_result %}
+                            <h5>Email Result:</h5>
+                            <div class="bg-light p-3 rounded mb-3">
+                                <p><strong>Recipient:</strong> {{ output_data.email_result.recipient }}</p>
+                                <p><strong>Subject:</strong> {{ output_data.email_result.subject }}</p>
+                                <p><strong>Status:</strong> {% if output_data.email_result.success %}Sent{% else %}Failed{% endif %}</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="accordion" id="rawOutputAccordion">
+                        <div class="accordion-item">
+                            <h2 class="accordion-header" id="headingRawOutput">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                                        data-bs-target="#collapseRawOutput" aria-expanded="false" aria-controls="collapseRawOutput">
+                                    Show Raw Output
+                                </button>
+                            </h2>
+                            <div id="collapseRawOutput" class="accordion-collapse collapse" aria-labelledby="headingRawOutput"
+                                data-bs-parent="#rawOutputAccordion">
+                                <div class="accordion-body">
+                                    <pre>{{ execution.output_data|default:"No output data" }}</pre>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                {% else %}
+                    <div class="alert alert-info">No output data available</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-12">
+        <div class="card">
+            <div class="card-header bg-white">
+                <h2 class="h5 mb-0">Execution Steps</h2>
+            </div>
+            <div class="card-body">
+                {% if steps %}
+                    <div class="timeline">
+                        {% for step in steps %}
+                            <div class="card mb-3">
+                                <div class="card-header bg-white">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <h5 class="mb-0">{{ step.node.name }} ({{ step.node.get_node_type_display }})</h5>
+                                        </div>
+                                        <div>
+                                            {% if step.is_complete %}
+                                                <span class="badge bg-success">Complete</span>
+                                            {% else %}
+                                                <span class="badge bg-primary">In Progress</span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <p><strong>Started:</strong> {{ step.started_at }}</p>
+                                            <p><strong>Completed:</strong> {{ step.completed_at|default:"In progress" }}</p>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="accordion" id="stepDataAccordion{{ step.id }}">
+                                        <div class="accordion-item">
+                                            <h2 class="accordion-header" id="headingStepData{{ step.id }}">
+                                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                                                        data-bs-target="#collapseStepData{{ step.id }}" aria-expanded="false" 
+                                                        aria-controls="collapseStepData{{ step.id }}">
+                                                    Show Step Data
+                                                </button>
+                                            </h2>
+                                            <div id="collapseStepData{{ step.id }}" class="accordion-collapse collapse" 
+                                                aria-labelledby="headingStepData{{ step.id }}"
+                                                data-bs-parent="#stepDataAccordion{{ step.id }}">
+                                                <div class="accordion-body">
+                                                    <h6>Input:</h6>
+                                                    <pre class="bg-light p-2 rounded mb-3">{{ step.input_data }}</pre>
+                                                    
+                                                    <h6>Output:</h6>
+                                                    <pre class="bg-light p-2 rounded">{{ step.output_data|default:"No output data" }}</pre>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="alert alert-info">No execution steps recorded yet.</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

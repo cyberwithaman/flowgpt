@@ -1,0 +1,250 @@
+{% extends 'base.html' %}
+
+{% block title %}FlowGPT - Home{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-12">
+        <div class="card mb-4">
+            <div class="card-header bg-white">
+                <h1 class="h3 mb-0">FlowGPT Automation</h1>
+            </div>
+            <div class="card-body">
+                <p class="lead">Welcome to FlowGPT, a visual automation tool that uses LangGraph for node-based task flows.</p>
+                <p>Select a pipeline below to execute or view the execution history to see past runs.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header bg-white">
+                <h2 class="h5 mb-0">Select Pipeline</h2>
+            </div>
+            <div class="card-body">
+                {% if pipelines %}
+                    <form id="pipelineForm" class="mb-4">
+                        <div class="mb-3">
+                            <label for="pipeline_select" class="form-label">Choose a pipeline:</label>
+                            <select class="form-select" id="pipeline_select" name="pipeline_id">
+                                <option value="">-- Select Pipeline --</option>
+                                {% for pipeline in pipelines %}
+                                    <option value="{{ pipeline.id }}">{{ pipeline.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="input_text" class="form-label">Input Text:</label>
+                            <textarea class="form-control" id="input_text" name="input_text" rows="5" placeholder="Enter text to process..."></textarea>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary" id="run_pipeline">Run Pipeline</button>
+                    </form>
+                {% else %}
+                    <div class="alert alert-info">
+                        No pipelines found. Please create pipelines in the admin panel.
+                    </div>
+                    <a href="/admin/flowgptapp/pipeline/add/" class="btn btn-primary">Create Pipeline</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header bg-white">
+                <h2 class="h5 mb-0">Execution Progress</h2>
+            </div>
+            <div class="card-body">
+                <div id="execution_progress" class="execution-progress">
+                    <div class="text-center text-muted">
+                        <p>Select a pipeline and run it to see execution progress here.</p>
+                    </div>
+                </div>
+                
+                <div id="execution_result" class="mt-4" style="display: none;">
+                    <h4>Result:</h4>
+                    <div class="border rounded p-3 bg-light">
+                        <pre id="result_data" class="mb-0"></pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    $(document).ready(function() {
+        // Variables to track execution
+        let currentExecutionId = null;
+        let statusPollingInterval = null;
+        
+        // Handle form submission
+        $('#pipelineForm').submit(function(e) {
+            e.preventDefault();
+            
+            const pipelineId = $('#pipeline_select').val();
+            const inputText = $('#input_text').val();
+            
+            if (!pipelineId) {
+                alert('Please select a pipeline');
+                return;
+            }
+            
+            // Clear any previous execution
+            clearExecution();
+            
+            // Show loading
+            $('#execution_progress').html('<div class="text-center"><div class="spinner-border text-primary" role="status"></div><p class="mt-2">Starting execution...</p></div>');
+            
+            // Execute pipeline
+            $.ajax({
+                url: '{% url "execute_pipeline" %}',
+                type: 'POST',
+                data: {
+                    pipeline_id: pipelineId,
+                    input_text: inputText
+                },
+                success: function(response) {
+                    if (response.success && response.execution_id) {
+                        currentExecutionId = response.execution_id;
+                        startStatusPolling();
+                    } else {
+                        showError('Invalid response from server');
+                    }
+                },
+                error: function(xhr) {
+                    showError('Error: ' + (xhr.responseJSON ? xhr.responseJSON.error : 'Failed to execute pipeline'));
+                }
+            });
+        });
+        
+        function startStatusPolling() {
+            // Clear any existing interval
+            if (statusPollingInterval) {
+                clearInterval(statusPollingInterval);
+            }
+            
+            // Poll for updates every 1 second
+            statusPollingInterval = setInterval(function() {
+                if (currentExecutionId) {
+                    checkExecutionStatus(currentExecutionId);
+                }
+            }, 1000);
+        }
+        
+        function checkExecutionStatus(executionId) {
+            $.ajax({
+                url: `/api/execution/${executionId}/status/`,
+                type: 'GET',
+                success: function(response) {
+                    updateExecutionUI(response);
+                    
+                    // If execution is complete, stop polling
+                    if (response.is_complete) {
+                        clearInterval(statusPollingInterval);
+                    }
+                },
+                error: function() {
+                    showError('Error checking execution status');
+                    clearInterval(statusPollingInterval);
+                }
+            });
+        }
+        
+        function updateExecutionUI(data) {
+            let html = `<h4>Pipeline: ${data.pipeline_name}</h4>`;
+            
+            if (data.steps && data.steps.length > 0) {
+                html += '<div class="mt-3">';
+                html += '<h5>Execution Steps:</h5>';
+                
+                data.steps.forEach(function(step) {
+                    const nodeClass = step.is_complete ? 'node-complete' : 
+                                    (data.current_node === step.node_name ? 'node-active' : '');
+                    
+                    html += `<div class="node ${nodeClass} mb-2">`;
+                    html += `<strong>${step.node_name}</strong> (${step.node_type})`;
+                    
+                    if (step.is_complete) {
+                        html += ` <span class="badge bg-success">Complete</span>`;
+                    } else if (data.current_node === step.node_name) {
+                        html += ` <span class="badge bg-primary">In Progress</span>`;
+                    }
+                    
+                    html += '</div>';
+                });
+                html += '</div>';
+            } else {
+                html += '<p>Initializing pipeline...</p>';
+            }
+            
+            $('#execution_progress').html(html);
+            
+            // If execution is complete, show the result
+            if (data.is_complete) {
+                // Show result section
+                $('#execution_result').show();
+                
+                // Fetch the full execution details for result
+                $.ajax({
+                    url: `/api/execution/${data.execution_id}/status/`,
+                    type: 'GET',
+                    success: function(execData) {
+                        // Format and display the result
+                        let resultText = '';
+                        
+                        if (execData.steps && execData.steps.length > 0) {
+                            // Get the last step's output
+                            const lastStep = execData.steps[execData.steps.length - 1];
+                            
+                            if (lastStep.output) {
+                                // Display relevant parts of the output
+                                if (lastStep.output.text) {
+                                    resultText += `Text: ${lastStep.output.text}\n\n`;
+                                }
+                                
+                                if (lastStep.output.summary) {
+                                    resultText += `Summary: ${lastStep.output.summary}\n\n`;
+                                }
+                                
+                                if (lastStep.output.translated_text) {
+                                    resultText += `Translated: ${lastStep.output.translated_text}\n\n`;
+                                }
+                                
+                                if (lastStep.output.email_result) {
+                                    resultText += `Email: Sent to ${lastStep.output.email_result.recipient}\n`;
+                                }
+                            }
+                        }
+                        
+                        $('#result_data').text(resultText || 'Processing completed');
+                    }
+                });
+            }
+        }
+        
+        function showError(message) {
+            $('#execution_progress').html(`
+                <div class="alert alert-danger">
+                    ${message}
+                </div>
+            `);
+        }
+        
+        function clearExecution() {
+            currentExecutionId = null;
+            if (statusPollingInterval) {
+                clearInterval(statusPollingInterval);
+            }
+            $('#execution_result').hide();
+            $('#result_data').text('');
+        }
+    });
+</script>
+{% endblock %} 
